@@ -1,24 +1,40 @@
-import unittest
+import torch
+import torchvision
+from PIL import Image
+from torchvision import transforms
+import matplotlib.pyplot as plt
+import numpy as np
 
-# 被測試的程式
-def add(x: int, y: int) -> int:
-    return x + y
+# 載入預訓練 DeepLabV3 模型
+model = torchvision.models.segmentation.deeplabv3_resnet50(pretrained=True).eval()
 
-def div(x: int, y: int) -> float:
-    return x / y
+# 載入影像
+img = Image.open("images.jpeg").convert("RGB")
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225])
+])
+input_tensor = transform(img).unsqueeze(0)
 
-# 測試類別要繼承 unittest.TestCase
-class TestMath(unittest.TestCase):
-    def test_add(self):
-        self.assertEqual(add(2, 3), 5)
-        self.assertEqual(add(-1, 1), 0)
+# 推論
+with torch.no_grad():
+    output = model(input_tensor)["out"][0]
+segmentation = output.argmax(0).byte().cpu().numpy()
 
-    def test_div(self):
-        self.assertAlmostEqual(div(10, 2), 5.0)
-        # 測試是否丟出例外
-        with self.assertRaises(ZeroDivisionError):
-            div(1, 0)
+# 建立顏色 map（隨機給顏色）
+num_classes = segmentation.max() + 1
+colors = np.random.randint(0, 255, size=(num_classes, 3), dtype=np.uint8)
+color_seg = colors[segmentation]
 
-# 直接執行測試
-if __name__ == '__main__':
-    unittest.main()
+# 顯示原圖 & segmentation
+plt.figure(figsize=(12,6))
+plt.subplot(1,2,1)
+plt.title("Original Image")
+plt.imshow(img)
+
+plt.subplot(1,2,2)
+plt.title("Segmentation")
+plt.imshow(color_seg)
+
+plt.show()
